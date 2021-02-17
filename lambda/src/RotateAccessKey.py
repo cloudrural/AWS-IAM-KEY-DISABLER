@@ -9,6 +9,7 @@ import time
 BUILD_VERSION = '@@buildversion'
 
 AWS_REGION = '@@deploymentregion'
+SES_REGION = '@@sesregion'
 AWS_ACCOUNT_NAME = '@@awsaccountname'
 AWS_ACCOUNT_ID = '@@awsaccountid'
 
@@ -43,12 +44,6 @@ KEY_EXPIRED_MESSAGE = '@@key_expired_message'
 
 KEY_YOUNG_MESSAGE = '@@key_young_message'
 
-try:
-    THROTTLE = @@throttle
-    THROTTLE = THROTTLE / 1000
-except:
-    THROTTLE = 0
-
 # ==========================================================
 
 # Character length of an IAM Access Key
@@ -70,6 +65,8 @@ def tzutc():
 def key_age(key_created_date):
     tz_info = key_created_date.tzinfo
     age = datetime.now(tz_info) - key_created_date
+
+    #print ('key age %s' % age)
 
     key_age_str = str(age)
     if 'days' not in key_age_str:
@@ -103,14 +100,6 @@ def send_admin_completion_email(finished, deactivated_report):
                 user_list += '<tr><td>'
                 user_list += f'{key["accesskeyid"]}, age {key["age"]}, {key["state"]}'
                 user_list += '</td></tr>'
-            for key in user["keys"]:
-                user_list += '<tr><td>'
-                user_list += f'{key["accesskeyid"]}, age {key["age"]}, {key["state"]}'
-                user_list += '</td></tr>'
-            for key in user["keys"]:
-                user_list += '<tr><td>'
-                user_list += f'{key["accesskeyid"]}, age {key["age"]}, {key["state"]}'
-                user_list += '</td></tr>'
             user_list += '</table>'
             user_list += '</td>'
             user_list += '</tr>'
@@ -131,7 +120,7 @@ def send_admin_completion_email(finished, deactivated_report):
     send_admin_email(subject, body)
 
 def send_admin_email(subject, body):
-    client = boto3.client('ses', region_name=AWS_REGION)
+    client = boto3.client('ses', region_name=SES_REGION)
     response = client.send_email(
         Source=EMAIL_FROM,
         Destination={
@@ -159,7 +148,7 @@ def send_user_email(email_to, key, message):
         if not email_to or not EMAIL_REGEX.match(email_to):
             return
 
-        client = boto3.client('ses', region_name=AWS_REGION)
+        client = boto3.client('ses', region_name=SES_REGION)
         response = client.send_email(
             Source=EMAIL_FROM,
             Destination={
@@ -167,7 +156,7 @@ def send_user_email(email_to, key, message):
             },
             Message={
                 'Subject': {
-                    'Data': 'AWS IAM Access Key Rotation'
+                    'Data': f'AWS IAM Access Key Rotation: {AWS_ACCOUNT_NAME} / {AWS_ACCOUNT_ID}'
                 },
                 'Body': {
                     'Html': {
@@ -177,20 +166,20 @@ def send_user_email(email_to, key, message):
             })
     except:
         pass
-
 def mask_access_key(access_key):
     return access_key[-(ACCESS_KEY_LENGTH-MASK_ACCESS_KEY_LENGTH):].rjust(len(access_key), "*")
 
 
 def lambda_handler(event, context):
-    print('*****************************')
-    print(f'RotateAccessKey v{BUILD_VERSION}: starting...')
-    print("*****************************")
+    print ('*****************************')
+    print (f'RotateAccessKey v{BUILD_VERSION}: starting...')
+    print ("*****************************")
     # Connect to AWS APIs
     client = boto3.client('iam')
 
     users = {}
     data = client.list_users()
+    #print (data)
 
     userindex = 0
 
@@ -203,41 +192,46 @@ def lambda_handler(event, context):
         users[userid] = { "username": username, "tags": usertags}
 
     users_report = []
-
     users_list_first_warning = []
     users_list_last_warning = [] 
     users_list_keys_deactivated = []
     users_list_email_tag_invalid = []
 
-    email_user_enabled = False
 
+    email_user_enabled = False
     try:
         email_user_enabled = EMAIL_USER_CONFIG["enabled"]
     except:
         pass
 
     for user in users:
+        email_user_address = None
+
         userindex += 1
         user_keys = []
 
+        #print ('---------------------')
+        #print ('userindex %s' % userindex)
+        #print ('user %s' % user)
         username = users[user]["username"]
         usertags = users[user]["tags"]
+        #print ('username %s' % username)
+        #print ('usertags %s' % usertags)
 
         # check to see if the current user is a special service account
         if username in SKIP_USERNAMES:
-            print(f'detected special username (configured service account etc.) {username}, key rotation skipped for this account...')
+           #print(f'detected special username (configured service account etc.) {username}, key rotation skipped for this account...')
             continue
 
-        # determine if USER based email address is enabled,
-        # it can be either username based or tag based,
-        # attempt to extract and set email address for later use
+        # determine if USER based email address is configured
+        # can be either username based or tag based
         user_email_address = None
         if email_user_enabled:
             try:
-                if EMAIL_USER_CONFIG["emailaddressconfig"]["type"] == "username":
-                    if EMAIL_REGEX.match(username):
-                        user_email_address = username
-                elif EMAIL_USER_CONFIG["emailaddressconfig"]["type"] == "tag":
+        #       if EMAIL_USER_CONFIG["emailaddressconfig"]["type"] == "username":
+        #           if EMAIL_REGEX.match(username):
+        #                email_user_address = username
+                if EMAIL_USER_CONFIG["emailaddressconfig"]["type"] == "tag":
                     validuseremailaddress = False
                     for tag in usertags["Tags"]:
                         if tag["Key"] == EMAIL_USER_CONFIG["emailaddressconfig"]["tagname"]:
@@ -247,22 +241,32 @@ def lambda_handler(event, context):
                                 validuseremailaddress = True
                                 break
                     if not validuseremailaddress:
-                        users_list_email_tag_invalid.append(username)
+                        users_list_email_tag_invalid.append(username)                        
+
 
             except Exception:
                 pass
 
+        #if EMAIL_ADMIN_ENABLED and EMAIL_USER_CONFIG["emailaddressconfig"]["reportmissingtag"] and not validuseremailaddress:
+            #send_admin_invaliduseremailaddress_email(username, EMAIL_USER_CONFIG["emailaddressconfig"]["tagname"])
+
         access_keys = client.list_access_keys(UserName=username)['AccessKeyMetadata']
         for access_key in access_keys:
+        #    print (access_key)
             access_key_id = access_key['AccessKeyId']
 
             masked_access_key_id = mask_access_key(access_key_id)
 
+        #    print ('AccessKeyId %s' % masked_access_key_id)
+
             existing_key_status = access_key['Status']
+        #    print (existing_key_status)
 
             key_created_date = access_key['CreateDate']
+        #    print ('key_created_date %s' % key_created_date)
 
             age = key_age(key_created_date)
+        #    print ('age %s' % age)
 
             # we only need to examine the currently Active and about to expire keys
             if existing_key_status == "Inactive":
@@ -293,17 +297,22 @@ def lambda_handler(event, context):
                     send_user_email(user_email_address, masked_access_key_id, KEY_EXPIRED_MESSAGE)
                 
                 key_state_changed = True
-                                
+
+        #    print ('key_state %s' % key_state)
+
             key_info = {'accesskeyid': masked_access_key_id, 'age': age, 'state': key_state, 'changed': key_state_changed}
             user_keys.append(key_info)
 
-        users_report.append({'userid': userindex, 'username': username, 'keys': user_keys})
+        #user_info_with_username = {'userid': userindex, 'username': username, 'keys': user_keys}
+        #user_info_without_username = {'userid': userindex, 'keys': user_keys}
 
-        if THROTTLE > 0:
-            time.sleep(THROTTLE)
+        #users_report1.append(user_info_with_username)
+        #users_report2.append(user_info_without_username)
+        users_report.append({'userid': userindex, 'username': username, 'keys': user_keys})
 
     finished = str(datetime.now())
     deactivated_report = {'reportdate': finished, 'users': users_report}
+#    print ('deactivated_report1 %s ' % deactivated_report1)
 
     if EMAIL_ADMIN_ENABLED:
         try:
@@ -314,18 +323,19 @@ def lambda_handler(event, context):
                 send_admin_invaliduseremailaddress_email(users_list_email_tag_invalid)
         except:
             pass
-
+        
     print(f'List of usernames notified with first warning: {users_list_first_warning}')
     print(f'List of usernames notified with last warning: {users_list_last_warning}')
     print(f'List of usernames whose keys were deactivated today: {users_list_keys_deactivated}')
     print(f'List of usernames who dont have a valid email tag: {users_list_email_tag_invalid}')
 
-    print('*****************************')
+    print ('*****************************')
     print(f'Completed (v{BUILD_VERSION}): {finished}')
-    print('*****************************')
+    print ('*****************************')
     return deactivated_report
 
 #if __name__ == "__main__":
 #    event = 1
 #    context = 1
 #    lambda_handler(event, context)
+

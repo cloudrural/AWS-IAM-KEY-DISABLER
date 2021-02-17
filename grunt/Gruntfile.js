@@ -1,10 +1,10 @@
 /*global module:false*/
 module.exports = function(grunt) {
-  var awsAccountName = grunt.option('awsaccountname') || '<%= pkg.key_disabler.aws.account_name %>';
-  var awsAccountId = grunt.option('awsaccountid') || '<%= pkg.key_disabler.aws.account_id %>';
-  var awsRegion = grunt.option('region') || '<%= pkg.key_disabler.lambda.aws.region %>';
+  var awsAccountName = grunt.option('awsaccountname') || '<%= pkg.key_disabler.aws_account_name %>';
+  var awsAccountId = grunt.option('awsaccountid') || '<%= pkg.key_disabler.aws_account_id %>';
+  var awsRegion = grunt.option('awsregion') || '<%= pkg.key_disabler.lambda.deployment_region %>';
+  var sesRegion = grunt.option('sesregion');
   var skipUsernames = grunt.option('skipusers') || '<%= pkg.key_disabler.iam.skip_usernames %>';
-  var throttle = grunt.option('throttle') || '<%= pkg.key_disabler.lambda.throttle %>';
 
   grunt.initConfig({
     pkg: grunt.file.readJSON('package.json'),
@@ -32,6 +32,10 @@ module.exports = function(grunt) {
             {
               match: 'deploymentregion',
               replacement: awsRegion
+            },
+            {
+              match: 'sesregion',
+              replacement: sesRegion
             },
             {
               match: 'skipusernames',
@@ -84,10 +88,6 @@ module.exports = function(grunt) {
             {
               match: 'key_young_message',
               replacement: '<%= pkg.key_disabler.keystates.young.message %>'
-            },
-            {
-              match: 'throttle',
-              replacement: throttle
             }
           ]
         },
@@ -107,11 +107,11 @@ module.exports = function(grunt) {
     },
 
     exec: {
-      package_lambda_function: {
-        cmd: './scripts/createZipPackage.sh'
-      },
       create_lambda_policy: {
         cmd: './scripts/createLambdaAccessKeyRotationPolicy.sh "<%= pkg.key_disabler.iam.lambda.policyname %>" "<%= pkg.key_disabler.iam.lambda.rolename %>" ' + awsRegion
+      },
+      package_lambda_function: {
+        cmd: './scripts/createZipPackage.sh'
       },
       create_lambda_function: {
         cmd: './scripts/createLambdaFunction.sh AccessKeyRotationPackage.<%= pkg.version %>.zip <%= pkg.version %> "<%= pkg.key_disabler.lambda.function_name %>" "<%= pkg.key_disabler.iam.lambda.rolename %>" <%= pkg.key_disabler.lambda.timeout %> <%= pkg.key_disabler.lambda.memory %> ' + awsRegion
@@ -143,3 +143,4 @@ module.exports = function(grunt) {
 
   grunt.registerTask('deployLambda', ['build', 'exec:package_lambda_function', 'renamePackage', 'exec:create_lambda_policy', 'exec:create_lambda_function', 'exec:create_scheduled_event']);
 };
+

@@ -1,6 +1,6 @@
 {
   "name": "key_disabler",
-  "version": "1.0.12",
+  "version": "1.0.24",
   "description": "Lambda helper functions",
   "main": "Gruntfile.js",
   "dependencies": {
@@ -21,33 +21,30 @@
   },
   "license": "ISC",
   "key_disabler": {
-    "aws": {
-      "account_name": "Production",
-      "account_id": "123456789012",
-      "region": "us-east-1"
-    },
+    "aws_account_name": "sandbox-devops",
+    "aws_account_id": "314945786589",
     "keystates": {
       "young": {
         "message": "is still valid"
       },
       "first_warning": {
-        "days": 23,
-        "message": "is due to expire in 1 week (7 days) - please rotate"
+        "days": 83,
+        "message": "is due to expire in 1 week (7 days) - Please rotate your IAM Access key if you have access to AWS console or else reach to SRE"
       },
       "last_warning": {
-        "days": 29,
-        "message": "is due to expire in 1 day (tomorrow) - please rotate"
+        "days": 89,
+        "message": "is due to expire in 1 day (tomorrow) - Please rotate your IAM Access key if you have access to AWS console or else reach to SRE"
       },
       "expired": {
-        "days": 30,
-        "message": "is now EXPIRED! Changing key to INACTIVE state - please rotate"
+        "days": 90,
+        "message": "is now EXPIRED! - Please rotate your IAM Access key if you have access to AWS console or else reach to SRE"
       }
     },
     "email": {
-      "from": "no-reply@example.com",
+      "from": "devops@poshmark.com",
       "admin": {
         "enabled": "True",
-        "to": "admin@example.com"
+        "to": "devops@poshmark.com"
       },
       "user": {
         "enabled": "True",
@@ -59,9 +56,9 @@
       }
     },
     "iam": {
-      "skip_usernames": [
-        "service-username1",
-        "service-username2"
+      "skip_sernames": [
+        "username1",
+        "username2"
       ],
       "lambda": {
         "rolename": "LambdaAccessKeyRotationRole",
@@ -71,12 +68,12 @@
     "lambda": {
       "function_name": "AccessKeyRotation",
       "memory": "128",
-      "timeout": "360",
-      "throttle": "0",
+      "timeout": "600",
+      "deployment_region": "us-east-1",
       "schedule": {
-        "rulename": "EveryDay4amNZT",
-        "description": "Runs every day at 4am NZT",
-        "expression": "cron(0 16 * * ? *)"
+        "rulename": "EveryDay9amIST",
+        "description": "Runs every day at 9am IST",
+        "expression": "cron(30 3 * * ? *)"
       }
     },
     "mask_accesskey_length": "16"
