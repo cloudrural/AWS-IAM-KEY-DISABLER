@@ -100,16 +100,17 @@ aws sts get-caller-identity
 aws events put-targets
 ```
 
-1. Grab yourself a copy of this repo `git clone https://github.com/jeremycook123/aws-key-disabler-2020`
-2. Navigate into the projects `grunt` folder: run `cd aws-key-disabler-2020/grunt`
+1. Grab yourself a copy of this repo `git clone https://github.com/sarathpantala/AWS-IAM-KEY-DISABLER.git`
+2. Navigate into the projects `grunt` folder: run `cd AWS-IAM-KEY-DISABLER/grunt`
 3. Setup the Grunt task runner, e.g. install its dependencies: run `npm install`
 4. Update the custom configuration within the `/grunt/package.json` file:
 
   * Update `key_disabler.aws.account_name` to contain name (metadata) of AWS account into which deployment will take place
   * Update `key_disabler.aws.account_id` to contain AWS account into which deployment will take place
   * Update `key_disabler.aws.region` to contain AWS region into which deployment will take place
+  * Update `--skipusers=sysuser1,sysuser2` to contain AWS region into which deployment will take place
 
-  **Note**: Can be overridden at deployment time using `grunt deployLambda --awsaccountname=BLAHCORP --awsaccountid=123456789012`
+  **Note**: Can be overridden at deployment time using `grunt deployLambda --awsaccountname=BLAHCORP --awsaccountid=123456789012 --awsregion=us-east-1 --skipusers=sysuser1,sysuser2 --sesregion=us-east-1`
 
   * Update `key_disabler.keystates.first_warning` and `key_disabler.keystates.last_warning` to the age that the key has to be in days to trigger an email warning.
   * Update `key_disabler.keystates.expired` to the age in days when the key expires. At this age the key is disabled.
@@ -149,24 +150,6 @@ Use `jq` to render the contents of the `scan.report.log` to the console:
 {
   "reportdate": "2016-06-26 10:37:24.071091",
   "users": [
-    {
-      "username": "TestS3User",
-      "userid": "1",
-      "keys": [
-        {
-          "age": 72,
-          "changed": false,
-          "state": "key is already in an INACTIVE state",
-          "accesskeyid": "**************Q3GA1"
-        },
-        {
-          "age": 12,
-          "changed": false,
-          "state": "key is still young",
-          "accesskeyid": "**************F3AA2"
-        }
-      ]
-    },
     {
       "username": "BlahUser22",
       "userid": "2",
@@ -262,22 +245,6 @@ Use `jq` to render the contents of the `scan.report.log` to the console:
         }
       ]
     },
-    {
-      "username": "admin.skynet@cyberdyne.systems.com",
-      "userid": "9",
-       "keys": [
-        {
-          "age": 45,
-          "changed": false,
-          "state": "key is already in an INACTIVE state",
-          "accesskeyid": "**************BLQ5GJ"
-        },
-        {
-          "age": 71,
-          "changed": false,
-          "state": "key is already in an INACTIVE state",
-          "accesskeyid": "**************GJFF53"
-        }
       ]
     }
   ]
